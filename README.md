@@ -36,8 +36,12 @@ Hay un paso que no puede hacer nadie más que tú, porque es tu cuenta de Google
 2. **APIs y servicios → Biblioteca** → habilita **Gmail API**.
 3. **Pantalla de consentimiento OAuth** → tipo *Externo* → añade tu segunda cuenta en *Usuarios de prueba*.
 4. **Credenciales → Crear credenciales → ID de cliente de OAuth** → tipo **Aplicación de escritorio**.
-5. Añade el URI de redirección `http://localhost:4477/oauth2callback`.
-6. Descarga el JSON y guárdalo en `~/.config/mcp-gmail-personal/credentials.json`.
+5. Descarga el JSON y guárdalo en `~/.config/mcp-gmail-personal/credentials.json`.
+
+> Un cliente de tipo **Aplicación de escritorio** no tiene campo de URIs de redirección en la
+> consola, y no hace falta: Google acepta automáticamente cualquier `http://localhost:<puerto>`
+> para este tipo de cliente. Por eso `http://localhost:4477/oauth2callback` funciona sin
+> registrarlo. Si eliges *Aplicación web* por error, entonces sí tendrás que declararlo a mano.
 
 Luego:
 
