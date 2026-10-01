@@ -1,5 +1,6 @@
 import { google, type gmail_v1 } from 'googleapis';
 import { getAuthenticatedClient } from './auth.js';
+import { signatureHtml, signatureText } from './style.js';
 
 export type MessageSummary = {
   id: string;
@@ -96,26 +97,73 @@ function encodeMessage(to: string, subject: string, body: string): string {
   return Buffer.from(mime, 'utf8').toString('base64url');
 }
 
-export async function createDraft(to: string, subject: string, body: string): Promise<string> {
+export async function createDraft(
+  to: string,
+  subject: string,
+  body: string,
+  html?: string,
+  withSignature = true,
+): Promise<string> {
   const gmail = await gmailClient();
+  const boundary = `lp_${Date.now().toString(36)}`;
+
+  const plain = withSignature ? `${body}\n\n--\n${await signatureText()}` : body;
+  const rich = html
+    ? withSignature
+      ? `${html}\n<br>\n${await signatureHtml()}`
+      : html
+    : undefined;
+
+  const headers = [
+    `To: ${to}`,
+    `Subject: =?utf-8?B?${Buffer.from(subject, 'utf8').toString('base64')}?=`,
+    'MIME-Version: 1.0',
+  ];
+
+  const mime = rich
+    ? [
+        ...headers,
+        `Content-Type: multipart/alternative; boundary="${boundary}"`,
+        '',
+        `--${boundary}`,
+        'Content-Type: text/plain; charset=utf-8',
+        '',
+        plain,
+        `--${boundary}`,
+        'Content-Type: text/html; charset=utf-8',
+        '',
+        `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#202124;line-height:1.5;">${rich}</div>`,
+        `--${boundary}--`,
+      ].join('\r\n')
+    : [...headers, 'Content-Type: text/plain; charset=utf-8', '', plain].join('\r\n');
+
   const { data } = await gmail.users.drafts.create({
     userId: 'me',
-    requestBody: { message: { raw: encodeMessage(to, subject, body) } },
+    requestBody: { message: { raw: Buffer.from(mime, 'utf8').toString('base64url') } },
   });
   return data.id ?? '';
 }
 
-export async function sendMessage(
-  to: string,
-  subject: string,
-  body: string,
-): Promise<{ id: string; threadId: string }> {
+export async function getGmailSignature(): Promise<{ email: string; signature: string }[]> {
   const gmail = await gmailClient();
-  const { data } = await gmail.users.messages.send({
+  const { data } = await gmail.users.settings.sendAs.list({ userId: 'me' });
+  return (data.sendAs ?? []).map((a) => ({
+    email: a.sendAsEmail ?? '',
+    signature: a.signature ?? '',
+  }));
+}
+
+export async function setGmailSignature(html: string): Promise<{ email: string; length: number }> {
+  const gmail = await gmailClient();
+  const { data: list } = await gmail.users.settings.sendAs.list({ userId: 'me' });
+  const primary = (list.sendAs ?? []).find((a) => a.isPrimary) ?? (list.sendAs ?? [])[0];
+  if (!primary?.sendAsEmail) throw new Error('No encuentro la direccion principal de envio.');
+  const { data } = await gmail.users.settings.sendAs.patch({
     userId: 'me',
-    requestBody: { raw: encodeMessage(to, subject, body) },
+    sendAsEmail: primary.sendAsEmail,
+    requestBody: { signature: html },
   });
-  return { id: data.id ?? '', threadId: data.threadId ?? '' };
+  return { email: primary.sendAsEmail, length: (data.signature ?? '').length };
 }
 
 export async function trashMessage(messageId: string): Promise<{ id: string; labels: string[] }> {
@@ -128,4 +176,21 @@ export async function untrashMessage(messageId: string): Promise<{ id: string; l
   const gmail = await gmailClient();
   const { data } = await gmail.users.messages.untrash({ userId: 'me', id: messageId });
   return { id: messageId, labels: data.labelIds ?? [] };
+}
+
+export async function sendDraft(draftId: string): Promise<{ messageId: string; threadId: string }> {
+  const gmail = await gmailClient();
+  const { data } = await gmail.users.drafts.send({ userId: 'me', requestBody: { id: draftId } });
+  return { messageId: data.id ?? '', threadId: data.threadId ?? '' };
+}
+
+export async function readDraft(draftId: string): Promise<{ to: string; subject: string; preview: string }> {
+  const gmail = await gmailClient();
+  const { data } = await gmail.users.drafts.get({ userId: 'me', id: draftId, format: 'full' });
+  const payload = data.message?.payload;
+  return {
+    to: header(payload, 'To'),
+    subject: header(payload, 'Subject'),
+    preview: flattenBody(payload).slice(0, 400),
+  };
 }

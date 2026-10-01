@@ -7,6 +7,8 @@ import type { OAuth2Client } from 'google-auth-library';
 
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.settings.basic',
 ];
 
 const CONFIG_DIR = join(homedir(), '.config', 'mcp-gmail-personal');

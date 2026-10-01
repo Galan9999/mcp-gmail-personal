@@ -2,15 +2,39 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import {
   createDraft,
+  getGmailSignature,
   listLabels,
+  readDraft,
   readMessage,
   searchMessages,
-  sendMessage,
+  sendDraft,
+  setGmailSignature,
   trashMessage,
   untrashMessage,
 } from './gmail.js';
+import { signatureHtml, voiceGuide } from './style.js';
+
+const CONFIRMATION_TTL_MS = 5 * 60 * 1000;
+const pendingSends = new Map<string, { draftId: string; to: string; expiresAt: number }>();
+
+function stashConfirmation(draftId: string, to: string): string {
+  const token = randomUUID();
+  pendingSends.set(token, { draftId, to, expiresAt: Date.now() + CONFIRMATION_TTL_MS });
+  return token;
+}
+
+function claimConfirmation(token: string): { draftId: string; to: string } {
+  const entry = pendingSends.get(token);
+  if (!entry) throw new Error('Token de confirmacion desconocido. Vuelve a llamar sin token para previsualizar.');
+  pendingSends.delete(token);
+  if (Date.now() > entry.expiresAt) {
+    throw new Error('El token caduco a los 5 minutos. Vuelve a llamar sin token para previsualizar de nuevo.');
+  }
+  return entry;
+}
 
 const server = new McpServer({ name: 'gmail-personal', version: '0.1.0' });
 
@@ -86,17 +110,63 @@ server.registerTool(
   {
     title: 'Crear borrador',
     description:
-      'Crea un borrador en la cuenta. No envia nada: el envio queda siempre en manos del humano.',
+      'Crea un borrador en la cuenta. No envia nada: el envio queda siempre en manos del humano. ' +
+      'Pasa `html` para un correo maquetado (se manda multipart/alternative, con el texto plano ' +
+      'como alternativa). La firma se adjunta sola salvo que pidas lo contrario. ' +
+      'Antes de redactar, lee el prompt `mi_voz` para el idioma, registro y cierre.',
     inputSchema: {
       to: z.string().describe('Destinatario'),
       subject: z.string(),
-      body: z.string(),
+      body: z.string().describe('Cuerpo en texto plano'),
+      html: z.string().optional().describe('Cuerpo en HTML. Solo estilos inline: Gmail ignora <style>'),
+      with_signature: z.boolean().default(true),
     },
     annotations: { readOnlyHint: false, destructiveHint: false },
   },
-  async ({ to, subject, body }) => {
+  async ({ to, subject, body, html, with_signature }) => {
     try {
-      return asText({ draft_id: await createDraft(to, subject, body) });
+      return asText({ draft_id: await createDraft(to, subject, body, html, with_signature) });
+    } catch (err) {
+      return asError(err);
+    }
+  },
+);
+
+server.registerTool(
+  'get_gmail_signature',
+  {
+    title: 'Leer la firma de Gmail',
+    description:
+      'Devuelve la firma configurada en los ajustes de Gmail para cada direccion de envio. ' +
+      'Es la que Gmail añade sola en la web y el movil, distinta de la que adjunta create_draft.',
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  },
+  async () => {
+    try {
+      return asText(await getGmailSignature());
+    } catch (err) {
+      return asError(err);
+    }
+  },
+);
+
+server.registerTool(
+  'set_gmail_signature',
+  {
+    title: 'Escribir la firma de Gmail',
+    description:
+      'Sustituye la firma de la direccion principal en los ajustes de Gmail. Afecta a todo lo que ' +
+      'envies desde cualquier cliente, no solo a lo que cree este servidor. Sin argumento usa ' +
+      'style/firma.html del proyecto.',
+    inputSchema: {
+      html: z.string().optional().describe('HTML de la firma. Si se omite, usa style/firma.html'),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+  },
+  async ({ html }) => {
+    try {
+      return asText(await setGmailSignature(html ?? (await signatureHtml())));
     } catch (err) {
       return asError(err);
     }
@@ -143,24 +213,67 @@ server.registerTool(
 server.registerTool(
   'send_email',
   {
-    title: 'Enviar un correo',
+    title: 'Enviar un correo (dos fases)',
     description:
-      'Envia un correo inmediatamente desde la cuenta. No tiene vuelta atras: una vez enviado ' +
-      'no se puede retirar. Para dejarlo revisable por el humano, usa create_draft en su lugar.',
+      'Envia un correo, en dos pasos obligatorios. SIN `confirmation_token` no envia nada: crea el ' +
+      'borrador, lo devuelve para que el humano lo lea y entrega un token que caduca en 5 minutos. ' +
+      'Solo una segunda llamada CON ese token envia, y envia exactamente ese borrador. ' +
+      'Enviar no tiene vuelta atras: un correo no se puede retirar.',
     inputSchema: {
-      to: z.string().describe('Destinatario'),
-      subject: z.string(),
-      body: z.string(),
+      to: z.string().optional().describe('Destinatario. Obligatorio en la primera fase'),
+      subject: z.string().optional(),
+      body: z.string().optional().describe('Cuerpo en texto plano'),
+      html: z.string().optional().describe('Cuerpo en HTML opcional'),
+      confirmation_token: z
+        .string()
+        .optional()
+        .describe('Token devuelto por la primera fase. Solo pasalo si el humano ha dicho que si'),
     },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
   },
-  async ({ to, subject, body }) => {
+  async ({ to, subject, body, html, confirmation_token }) => {
     try {
-      return asText(await sendMessage(to, subject, body));
+      if (confirmation_token) {
+        const { draftId, to: destino } = claimConfirmation(confirmation_token);
+        const sent = await sendDraft(draftId);
+        return asText({ enviado: true, a: destino, message_id: sent.messageId });
+      }
+
+      if (!to || !subject || !body) {
+        return asError(new Error('Para previsualizar hacen falta to, subject y body.'));
+      }
+
+      const draftId = await createDraft(to, subject, body, html);
+      const preview = await readDraft(draftId);
+      return asText({
+        enviado: false,
+        aviso: 'NADA SE HA ENVIADO. Enseña esto al humano y espera su visto bueno explicito.',
+        borrador: preview,
+        confirmation_token: stashConfirmation(draftId, preview.to),
+        caduca_en: '5 minutos',
+      });
     } catch (err) {
       return asError(err);
     }
   },
+);
+
+server.registerPrompt(
+  'mi_voz',
+  {
+    title: 'Redactar con mi voz',
+    description:
+      'Las reglas de como escribo correos: que idioma elijo segun el interlocutor, los dos ' +
+      'registros, que hago siempre y que no hago nunca. Leelo antes de redactar un borrador.',
+  },
+  async () => ({
+    messages: [
+      {
+        role: 'user' as const,
+        content: { type: 'text' as const, text: await voiceGuide() },
+      },
+    ],
+  }),
 );
 
 await server.connect(new StdioServerTransport());

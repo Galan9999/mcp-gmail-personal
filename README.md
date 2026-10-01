@@ -14,10 +14,13 @@ cómo se construye un MCP por dentro.
 
 | Fichero | Qué hace |
 |---|---|
-| `src/index.ts` | El servidor MCP. Declara las 4 herramientas con `registerTool` y se conecta por `StdioServerTransport`. |
+| `src/index.ts` | El servidor MCP. Declara las 9 herramientas con `registerTool`, el prompt `mi_voz` con `registerPrompt`, y se conecta por `StdioServerTransport`. |
 | `src/gmail.ts` | Envoltorio fino sobre la Gmail API. Decodifica base64url y aplana los `multipart` a texto plano. |
 | `src/auth.ts` | OAuth2 con loopback en `localhost:4477`. Guarda el token en `~/.config/mcp-gmail-personal/token.json` con permisos `600`. |
 | `src/auth-cli.ts` | El `pnpm auth`: abre el consentimiento una sola vez. |
+| `src/style.ts` | Carga `style/voz.md` y `style/firma.html`, y deriva la firma en texto plano desde la HTML. |
+| `style/voz.md` | **Editable.** Cómo escribo: idioma por interlocutor, los dos registros, qué hago siempre y qué nunca. |
+| `style/firma.html` | **Editable.** Firma con estilos inline, que es lo único que Gmail respeta. |
 
 Las tres piezas del protocolo que conviene mirar en el código:
 
@@ -61,8 +64,27 @@ pnpm auth        # abre la URL con la SEGUNDA cuenta y acepta
 | `create_draft` | Escritura, pero **solo borradores**. Enviar se queda fuera a propósito: el envío lo decide un humano. |
 | `trash_email` | Escritura. Mueve a la papelera, igual que el botón de borrar de Gmail. Reversible 30 días. |
 | `untrash_email` | Escritura. Deshace lo anterior. |
+| `send_email` | Escritura. **Envía de verdad**, en dos fases obligatorias — ver abajo. |
+| `get_gmail_signature` | Lectura. La firma de los ajustes de Gmail, la que se añade sola en web y móvil. |
+| `set_gmail_signature` | Escritura. La sustituye. Afecta a todo lo que envíes desde cualquier cliente. |
 
-El scope pedido es **`gmail.modify`**, uno solo. Google lo describe de forma alarmante («leer,
+Más un prompt, `mi_voz`, que sirve `style/voz.md` para que cualquier sesión redacte con tu registro.
+
+## El envío son dos llamadas, no una
+
+Las anotaciones de MCP (`destructiveHint`, `openWorldHint`) son **pistas**: quien decide si pregunta
+al humano es el cliente, no el servidor. Para que la confirmación no dependa de esa buena voluntad,
+`send_email` la impone él mismo:
+
+1. **Sin `confirmation_token`** → crea el borrador, devuelve destinatario, asunto y los primeros 400
+   caracteres, y entrega un token que vive 5 minutos. No sale nada.
+2. **Con el token** → envía *ese* borrador, por su id. El token se consume al usarlo.
+
+Como la segunda fase manda un borrador ya existente y no uno nuevo, el contenido no puede cambiar
+entre lo que revisas y lo que sale. Un token inventado o caducado se rechaza con un mensaje que
+explica cómo volver a empezar.
+
+Los scopes pedidos son **`gmail.modify`**, **`gmail.send`** y **`gmail.settings.basic`**. Google lo describe de forma alarmante («leer,
 redactar, enviar y eliminar permanentemente»), así que conviene separar dos cosas:
 
 - **El scope marca el techo**: lo máximo que la app *podría* llegar a hacer.
