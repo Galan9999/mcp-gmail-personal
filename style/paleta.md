@@ -23,17 +23,16 @@ si eso reclama algo de ti o no.
 
 | Etiqueta | Fondo | Texto | Qué significa |
 |---|---|---|---|
-| **Trabajo** | `#0d3472` azul profundo | `#b6cff5` | Compromiso con terceros. No depende solo de ti. |
-| **Personal** | `#04502e` verde | `#a2dcc1` | Tuyo y sin plazo. Importa, pero no corre. |
-| **Viaje** | `#7a4706` ámbar | `#ffdeb5` | Tiene fecha. Lo cálido avisa de que caduca. |
-| **Recibos** | `#464646` gris | `#e7e7e7` | Archivo. Guardar y olvidar hasta que haga falta. |
-| **Notes** | `#3d188e` morado | `#e3d7ff` | Ideas. No pide acción, pide volver a leerlo. |
-| **Sideprojects** | `#0d3b44` turquesa | `#98d7e4` | Compromiso técnico, pero contigo mismo. Frío, aparte del azul. |
-| **Ruido** | `#e7e7e7` gris claro | `#666666` | Marketing. Se retira a la vista a propósito. |
-| **Ruido/Aerolíneas** | `#fdedc1` ámbar apagado | `#684e07` | Promo con fecha, pero no te compromete. Cálido atenuado. |
+| **Trabajo** | `#3c78d8` azul vivo | `#ffffff` | Compromiso con terceros. No depende solo de ti. |
+| **Sideprojects** | `#2da2bb` turquesa | `#ffffff` | También frío, pero el tercero eres tú. |
+| **Personal** | `#16a766` verde vivo | `#ffffff` | Tuyo y sin plazo. Importa, pero no corre. |
+| **Viaje** | `#ff7537` naranja vivo | `#ffffff` | Tiene fecha de verdad. |
+| **Aerolineas** | `#fad165` amarillo | `#000000` | Misma familia cálida que Viaje, pero es promo. |
+| **Recibos** | `#e66550` coral | `#ffffff` | Dinero. Guardar, y a veces pagar. |
+| **Notes** | `#a479e2` morado vivo | `#ffffff` | Ideas. Releer, no actuar. |
+| **Ruido** | `#cccccc` gris | `#666666` | El único gris, y significa una sola cosa: ignorar. |
 
-`Ruido/Aerolíneas` cuelga de `Ruido`: la barra anida en Gmail, así que hereda el sitio y el
-significado sin ensuciar `Viaje`, que se reserva para viajes de verdad.
+Gris hay uno solo, y por eso funciona: si algo está gris, no lo mires.
 
 ## Por qué estos hex y no otros
 

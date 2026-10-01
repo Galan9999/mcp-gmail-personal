@@ -5,12 +5,16 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import {
   createDraft,
+  createFilter,
   createLabel,
+  deleteFilter,
   getGmailSignature,
+  listFilters,
   listLabels,
   modifyLabels,
   readDraft,
   readMessage,
+  renameLabel,
   searchMessages,
   searchPage,
   sendDraft,
@@ -382,6 +386,92 @@ server.registerTool(
         }
       }
       return asText(await createLabel(name, background_color?.toLowerCase(), text_color?.toLowerCase()));
+    } catch (err) {
+      return asError(err);
+    }
+  },
+);
+
+server.registerTool(
+  'rename_label',
+  {
+    title: 'Renombrar una etiqueta',
+    description:
+      'Cambia el nombre de una etiqueta conservando su id, su color y los mensajes que la llevan. ' +
+      'Quitar o poner una barra la saca o la mete de otra: "Ruido/Aerolineas" -> "Aerolineas" la sube ' +
+      'a primer nivel.',
+    inputSchema: {
+      label_id: z.string().describe('id de la etiqueta, p. ej. Label_7'),
+      name: z.string().describe('Nombre nuevo. / anida'),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  },
+  async ({ label_id, name }) => {
+    try {
+      return asText(await renameLabel(label_id, name));
+    } catch (err) {
+      return asError(err);
+    }
+  },
+);
+
+server.registerTool(
+  'list_filters',
+  {
+    title: 'Listar los filtros de Gmail',
+    description: 'Las reglas permanentes de la cuenta: a que remitente o consulta aplican y que etiqueta ponen.',
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  },
+  async () => {
+    try {
+      return asText(await listFilters());
+    } catch (err) {
+      return asError(err);
+    }
+  },
+);
+
+server.registerTool(
+  'create_filter',
+  {
+    title: 'Crear un filtro de Gmail',
+    description:
+      'Crea una regla permanente que etiqueta el correo QUE LLEGUE A PARTIR DE AHORA. No toca lo ya ' +
+      'recibido: para eso usa modify_labels. Pasa `remove` con INBOX si quieres que ademas no pare ' +
+      'en Recibidos. Se deshace con delete_filter, pero las etiquetas ya puestas se quedan.',
+    inputSchema: {
+      from: z.string().optional().describe('Remitente o dominio, p. ej. wikiloc.com'),
+      query: z.string().optional().describe('Consulta en sintaxis de Gmail, para casos que `from` no cubre'),
+      subject: z.string().optional(),
+      add: z.array(z.string()).default([]).describe('ids de etiqueta a poner'),
+      remove: z.array(z.string()).default([]).describe('ids a quitar. INBOX archiva directamente'),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false },
+  },
+  async ({ from, query, subject, add, remove }) => {
+    try {
+      if (!from && !query && !subject) {
+        return asError(new Error('Un filtro sin criterio casaria con todo. Pasa from, query o subject.'));
+      }
+      return asText(await createFilter({ from, query, subject }, add, remove));
+    } catch (err) {
+      return asError(err);
+    }
+  },
+);
+
+server.registerTool(
+  'delete_filter',
+  {
+    title: 'Borrar un filtro',
+    description: 'Elimina una regla. Las etiquetas que ya puso siguen en los mensajes.',
+    inputSchema: { filter_id: z.string() },
+    annotations: { readOnlyHint: false, destructiveHint: true },
+  },
+  async ({ filter_id }) => {
+    try {
+      return asText(await deleteFilter(filter_id));
     } catch (err) {
       return asError(err);
     }
