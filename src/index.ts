@@ -5,11 +5,14 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import {
   createDraft,
+  createLabel,
   getGmailSignature,
   listLabels,
+  modifyLabels,
   readDraft,
   readMessage,
   searchMessages,
+  searchPage,
   sendDraft,
   setGmailSignature,
   setLabelColor,
@@ -304,6 +307,81 @@ server.registerTool(
         }
       }
       return asText(await setLabelColor(label_id, background_color.toLowerCase(), text_color.toLowerCase()));
+    } catch (err) {
+      return asError(err);
+    }
+  },
+);
+
+server.registerTool(
+  'search_page',
+  {
+    title: 'Buscar correos, pagina a pagina',
+    description:
+      'Como search_emails pero paginado: devuelve `next_page_token` cuando hay mas resultados. ' +
+      'Pasalo en la siguiente llamada para seguir. Sin token, empieza por el principio.',
+    inputSchema: {
+      query: z.string(),
+      max_results: z.number().int().min(1).max(100).default(50),
+      page_token: z.string().optional(),
+    },
+    annotations: { readOnlyHint: true },
+  },
+  async ({ query, max_results, page_token }) => {
+    try {
+      const r = await searchPage(query, max_results, page_token);
+      return asText({ mensajes: r.messages, next_page_token: r.nextPageToken ?? null });
+    } catch (err) {
+      return asError(err);
+    }
+  },
+);
+
+server.registerTool(
+  'modify_labels',
+  {
+    title: 'Poner y quitar etiquetas',
+    description:
+      'Aplica o retira etiquetas de un mensaje, por id de etiqueta (Label_4, no "Trabajo" — usa ' +
+      'list_labels para traducir). Es reversible: lo que pongas se quita con la llamada inversa.',
+    inputSchema: {
+      message_id: z.string(),
+      add: z.array(z.string()).default([]).describe('ids de etiqueta a poner'),
+      remove: z.array(z.string()).default([]).describe('ids de etiqueta a quitar'),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  },
+  async ({ message_id, add, remove }) => {
+    try {
+      return asText(await modifyLabels(message_id, add, remove));
+    } catch (err) {
+      return asError(err);
+    }
+  },
+);
+
+server.registerTool(
+  'create_label',
+  {
+    title: 'Crear una etiqueta',
+    description:
+      'Crea una etiqueta nueva, opcionalmente con color. Una barra en el nombre la anida: ' +
+      '"Ruido/Aerolineas" cuelga de "Ruido". Los colores deben estar en la paleta de Gmail.',
+    inputSchema: {
+      name: z.string().describe('Nombre. Usa / para anidar'),
+      background_color: z.string().optional(),
+      text_color: z.string().optional(),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false },
+  },
+  async ({ name, background_color, text_color }) => {
+    try {
+      for (const v of [background_color, text_color]) {
+        if (v && !GMAIL_LABEL_COLORS.includes(v.toLowerCase())) {
+          return asError(new Error(`"${v}" no esta en la paleta de Gmail. Llama a list_label_colors.`));
+        }
+      }
+      return asText(await createLabel(name, background_color?.toLowerCase(), text_color?.toLowerCase()));
     } catch (err) {
       return asError(err);
     }

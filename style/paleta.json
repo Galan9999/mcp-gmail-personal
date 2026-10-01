@@ -1,10 +1,45 @@
 {
   "_leyenda": "El color dice QUE TE PIDE la etiqueta, no de que trata. Frio = compromiso con otros. Calido = tiene fecha. Gris = solo archivar. Morado = pensar, nada que hacer.",
   "etiquetas": {
-    "Trabajo":  { "backgroundColor": "#0d3472", "textColor": "#b6cff5", "porque": "Azul profundo: compromiso con terceros, lo que no depende solo de ti." },
-    "Personal": { "backgroundColor": "#04502e", "textColor": "#a2dcc1", "porque": "Verde: tuyo y sin plazo. Importa, pero no corre." },
-    "Viaje":    { "backgroundColor": "#7a4706", "textColor": "#ffdeb5", "porque": "Ambar: tiene fecha. Lo calido avisa de que caduca." },
-    "Recibos":  { "backgroundColor": "#464646", "textColor": "#e7e7e7", "porque": "Gris: archivo. Guardar y olvidar hasta que haga falta." },
-    "Notes":    { "backgroundColor": "#3d188e", "textColor": "#e3d7ff", "porque": "Morado: ideas. No pide accion, pide volver a leerlo." }
+    "Trabajo": {
+      "backgroundColor": "#0d3472",
+      "textColor": "#b6cff5",
+      "porque": "Azul profundo: compromiso con terceros, lo que no depende solo de ti."
+    },
+    "Personal": {
+      "backgroundColor": "#04502e",
+      "textColor": "#a2dcc1",
+      "porque": "Verde: tuyo y sin plazo. Importa, pero no corre."
+    },
+    "Viaje": {
+      "backgroundColor": "#7a4706",
+      "textColor": "#ffdeb5",
+      "porque": "Ambar: tiene fecha. Lo calido avisa de que caduca."
+    },
+    "Recibos": {
+      "backgroundColor": "#464646",
+      "textColor": "#e7e7e7",
+      "porque": "Gris: archivo. Guardar y olvidar hasta que haga falta."
+    },
+    "Notes": {
+      "backgroundColor": "#3d188e",
+      "textColor": "#e3d7ff",
+      "porque": "Morado: ideas. No pide accion, pide volver a leerlo."
+    },
+    "Ruido": {
+      "backgroundColor": "#e7e7e7",
+      "textColor": "#666666",
+      "porque": "Gris claro: no pide nada. Se retira a la vista a proposito."
+    },
+    "Ruido/Aerolineas": {
+      "backgroundColor": "#fdedc1",
+      "textColor": "#684e07",
+      "porque": "Ambar apagado: promo con fecha, pero no te compromete. Calido atenuado."
+    },
+    "Sideprojects": {
+      "backgroundColor": "#0d3b44",
+      "textColor": "#98d7e4",
+      "porque": "Turquesa: compromiso tecnico, pero contigo mismo. Frio, aparte del azul de Trabajo."
+    }
   }
 }

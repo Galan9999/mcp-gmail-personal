@@ -28,6 +28,12 @@ si eso reclama algo de ti o no.
 | **Viaje** | `#7a4706` ámbar | `#ffdeb5` | Tiene fecha. Lo cálido avisa de que caduca. |
 | **Recibos** | `#464646` gris | `#e7e7e7` | Archivo. Guardar y olvidar hasta que haga falta. |
 | **Notes** | `#3d188e` morado | `#e3d7ff` | Ideas. No pide acción, pide volver a leerlo. |
+| **Sideprojects** | `#0d3b44` turquesa | `#98d7e4` | Compromiso técnico, pero contigo mismo. Frío, aparte del azul. |
+| **Ruido** | `#e7e7e7` gris claro | `#666666` | Marketing. Se retira a la vista a propósito. |
+| **Ruido/Aerolíneas** | `#fdedc1` ámbar apagado | `#684e07` | Promo con fecha, pero no te compromete. Cálido atenuado. |
+
+`Ruido/Aerolíneas` cuelga de `Ruido`: la barra anida en Gmail, así que hereda el sitio y el
+significado sin ensuciar `Viaje`, que se reserva para viajes de verdad.
 
 ## Por qué estos hex y no otros
 

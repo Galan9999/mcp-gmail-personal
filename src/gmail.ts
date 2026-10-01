@@ -11,6 +11,37 @@ export type MessageSummary = {
   snippet: string;
 };
 
+
+const MAX_CONCURRENT = 5;
+
+async function mapLimited<T, R>(items: T[], fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(MAX_CONCURRENT, items.length) }, async () => {
+    while (cursor < items.length) {
+      const i = cursor++;
+      out[i] = await withRetry(() => fn(items[i] as T));
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
+async function withRetry<R>(fn: () => Promise<R>, attempts = 4): Promise<R> {
+  let waitMs = 1000;
+  for (let i = 0; ; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const code = (err as { code?: number }).code;
+      const quota = code === 429 || code === 403;
+      if (!quota || i >= attempts - 1) throw err;
+      await new Promise((r) => setTimeout(r, waitMs));
+      waitMs *= 2;
+    }
+  }
+}
+
 let cached: gmail_v1.Gmail | null = null;
 
 export async function gmailClient(): Promise<gmail_v1.Gmail> {
@@ -45,24 +76,22 @@ export async function searchMessages(query: string, maxResults: number): Promise
   const list = await gmail.users.messages.list({ userId: 'me', q: query, maxResults });
   const ids = (list.data.messages ?? []).map((m) => m.id).filter((id): id is string => Boolean(id));
 
-  return Promise.all(
-    ids.map(async (id) => {
+  return mapLimited(ids, async (id) => {
       const { data } = await gmail.users.messages.get({
         userId: 'me',
         id,
         format: 'metadata',
         metadataHeaders: ['From', 'Subject', 'Date'],
       });
-      return {
-        id,
-        threadId: data.threadId ?? '',
-        from: header(data.payload, 'From'),
-        subject: header(data.payload, 'Subject'),
-        date: header(data.payload, 'Date'),
-        snippet: data.snippet ?? '',
-      };
-    }),
-  );
+    return {
+      id,
+      threadId: data.threadId ?? '',
+      from: header(data.payload, 'From'),
+      subject: header(data.payload, 'Subject'),
+      date: header(data.payload, 'Date'),
+      snippet: data.snippet ?? '',
+    };
+  });
 }
 
 export async function readMessage(messageId: string): Promise<MessageSummary & { body: string }> {
@@ -212,4 +241,64 @@ export async function setLabelColor(
     backgroundColor: data.color?.backgroundColor ?? '',
     textColor: data.color?.textColor ?? '',
   };
+}
+
+export async function modifyLabels(
+  messageId: string,
+  addLabelIds: string[],
+  removeLabelIds: string[],
+): Promise<{ id: string; labels: string[] }> {
+  const gmail = await gmailClient();
+  const { data } = await gmail.users.messages.modify({
+    userId: 'me',
+    id: messageId,
+    requestBody: { addLabelIds, removeLabelIds },
+  });
+  return { id: messageId, labels: data.labelIds ?? [] };
+}
+
+export async function searchPage(
+  query: string,
+  maxResults: number,
+  pageToken?: string,
+): Promise<{ messages: MessageSummary[]; nextPageToken?: string }> {
+  const gmail = await gmailClient();
+  const list = await gmail.users.messages.list({ userId: 'me', q: query, maxResults, pageToken });
+  const ids = (list.data.messages ?? []).map((m) => m.id).filter((id): id is string => Boolean(id));
+
+  const messages = await mapLimited(ids, async (id) => {
+      const { data } = await gmail.users.messages.get({
+        userId: 'me',
+        id,
+        format: 'metadata',
+        metadataHeaders: ['From', 'Subject', 'Date'],
+      });
+    return {
+      id,
+      threadId: data.threadId ?? '',
+      from: header(data.payload, 'From'),
+      subject: header(data.payload, 'Subject'),
+      date: header(data.payload, 'Date'),
+      snippet: data.snippet ?? '',
+    };
+  });
+  return { messages, nextPageToken: list.data.nextPageToken ?? undefined };
+}
+
+export async function createLabel(
+  name: string,
+  backgroundColor?: string,
+  textColor?: string,
+): Promise<{ id: string; name: string }> {
+  const gmail = await gmailClient();
+  const { data } = await gmail.users.labels.create({
+    userId: 'me',
+    requestBody: {
+      name,
+      labelListVisibility: 'labelShow',
+      messageListVisibility: 'show',
+      ...(backgroundColor && textColor ? { color: { backgroundColor, textColor } } : {}),
+    },
+  });
+  return { id: data.id ?? '', name: data.name ?? name };
 }
