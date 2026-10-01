@@ -1,0 +1,25 @@
+{
+  "name": "mcp-gmail-personal",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "mcp-gmail-personal": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "auth": "node dist/auth-cli.js",
+    "inspect": "pnpm build && npx @modelcontextprotocol/inspector node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "google-auth-library": "^11.1.0",
+    "googleapis": "^182.0.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "typescript": "^7.0.2"
+  }
+}
