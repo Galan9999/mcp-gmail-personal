@@ -61,7 +61,7 @@ pnpm auth        # abre la URL con la SEGUNDA cuenta y acepta
 | `search_emails` | Lectura. Sintaxis nativa de Gmail (`is:unread`, `from:`, `newer_than:7d`). |
 | `read_email` | Lectura. Cuerpo completo en texto plano. |
 | `list_labels` | Lectura. |
-| `create_draft` | Escritura, pero **solo borradores**. Enviar se queda fuera a propósito: el envío lo decide un humano. |
+| `create_draft` | Escritura. Deja el correo en Borradores y ahí se queda: no envía. Acepta `html` para maquetarlo. |
 | `trash_email` | Escritura. Mueve a la papelera, igual que el botón de borrar de Gmail. Reversible 30 días. |
 | `untrash_email` | Escritura. Deshace lo anterior. |
 | `send_email` | Escritura. **Envía de verdad**, en dos fases obligatorias — ver abajo. |
@@ -88,9 +88,10 @@ Los scopes pedidos son **`gmail.modify`**, **`gmail.send`** y **`gmail.settings.
 redactar, enviar y eliminar permanentemente»), así que conviene separar dos cosas:
 
 - **El scope marca el techo**: lo máximo que la app *podría* llegar a hacer.
-- **El código marca el suelo**: lo que realmente hace. Aquí, seis herramientas y ninguna que envíe.
+- **El código marca el suelo**: lo que realmente hace. Aquí, nueve herramientas, y la única que
+  envía exige dos llamadas y un token que caduca.
 
-Y hay un límite que no depende del código: `gmail.modify` **no permite el borrado permanente**. Eso
+Y hay un límite que no depende del código: ninguno de los tres **permite el borrado permanente**. Eso
 exige el scope total `https://mail.google.com/`, que este servidor no pide. La papelera es
 reversible porque Google no le concedería otra cosa, no porque el código se porte bien.
 
@@ -103,5 +104,8 @@ pnpm inspect     # MCP Inspector: ver tools/list y llamar a mano
 ## Siguientes pasos para aprender
 
 - Añadir un **resource** (`server.registerResource`) que exponga un hilo como documento.
-- Añadir un **prompt** (`server.registerPrompt`), p. ej. "resume mi bandeja de hoy".
 - Paginar `search_emails` con `nextPageToken` en vez de un `max_results` tope.
+- Colorear etiquetas con `users.labels.patch` — el único color de la interfaz que la API expone.
+  El tema de Gmail no: `theme` no aparece ni una vez en los tipos de la API.
+- Servirlo como **MCP remoto** por HTTP con su propio OAuth, que es lo que hace Google con
+  `gmailmcp.googleapis.com`. Es el único camino para que exista fuera de Claude Code.
