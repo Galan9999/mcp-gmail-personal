@@ -12,6 +12,23 @@ export type MessageSummary = {
 };
 
 
+
+// Gmail limita a 250 unidades de cuota por usuario y segundo, y un messages.get cuesta 5.
+// Reintentar no arregla pasarse de ritmo: hay que espaciar las peticiones.
+const UNITS_PER_SECOND = 100;
+const UNITS_PER_READ = 5;
+const MIN_GAP_MS = Math.ceil(1000 / (UNITS_PER_SECOND / UNITS_PER_READ));
+
+let nextSlot = 0;
+
+async function rateLimited<R>(fn: () => Promise<R>): Promise<R> {
+  const now = Date.now();
+  const slot = Math.max(now, nextSlot);
+  nextSlot = slot + MIN_GAP_MS;
+  if (slot > now) await new Promise((r) => setTimeout(r, slot - now));
+  return fn();
+}
+
 const MAX_CONCURRENT = 5;
 
 async function mapLimited<T, R>(items: T[], fn: (item: T) => Promise<R>): Promise<R[]> {
@@ -20,7 +37,7 @@ async function mapLimited<T, R>(items: T[], fn: (item: T) => Promise<R>): Promis
   const workers = Array.from({ length: Math.min(MAX_CONCURRENT, items.length) }, async () => {
     while (cursor < items.length) {
       const i = cursor++;
-      out[i] = await withRetry(() => fn(items[i] as T));
+      out[i] = await withRetry(() => rateLimited(() => fn(items[i] as T)));
     }
   });
   await Promise.all(workers);
@@ -358,7 +375,7 @@ export async function listMessageIds(query: string): Promise<string[]> {
   let pageToken: string | undefined;
   do {
     const { data } = await withRetry(() =>
-      gmail.users.messages.list({ userId: 'me', q: query, maxResults: 500, pageToken }),
+      rateLimited(() => gmail.users.messages.list({ userId: 'me', q: query, maxResults: 500, pageToken })),
     );
     for (const m of data.messages ?? []) if (m.id) ids.push(m.id);
     pageToken = data.nextPageToken ?? undefined;
