@@ -84,8 +84,7 @@ export async function listLabels(): Promise<{ id: string; name: string }[]> {
   return (data.labels ?? []).map((l) => ({ id: l.id ?? '', name: l.name ?? '' }));
 }
 
-export async function createDraft(to: string, subject: string, body: string): Promise<string> {
-  const gmail = await gmailClient();
+function encodeMessage(to: string, subject: string, body: string): string {
   const mime = [
     `To: ${to}`,
     `Subject: =?utf-8?B?${Buffer.from(subject, 'utf8').toString('base64')}?=`,
@@ -94,10 +93,39 @@ export async function createDraft(to: string, subject: string, body: string): Pr
     '',
     body,
   ].join('\r\n');
+  return Buffer.from(mime, 'utf8').toString('base64url');
+}
 
+export async function createDraft(to: string, subject: string, body: string): Promise<string> {
+  const gmail = await gmailClient();
   const { data } = await gmail.users.drafts.create({
     userId: 'me',
-    requestBody: { message: { raw: Buffer.from(mime, 'utf8').toString('base64url') } },
+    requestBody: { message: { raw: encodeMessage(to, subject, body) } },
   });
   return data.id ?? '';
+}
+
+export async function sendMessage(
+  to: string,
+  subject: string,
+  body: string,
+): Promise<{ id: string; threadId: string }> {
+  const gmail = await gmailClient();
+  const { data } = await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: { raw: encodeMessage(to, subject, body) },
+  });
+  return { id: data.id ?? '', threadId: data.threadId ?? '' };
+}
+
+export async function trashMessage(messageId: string): Promise<{ id: string; labels: string[] }> {
+  const gmail = await gmailClient();
+  const { data } = await gmail.users.messages.trash({ userId: 'me', id: messageId });
+  return { id: messageId, labels: data.labelIds ?? [] };
+}
+
+export async function untrashMessage(messageId: string): Promise<{ id: string; labels: string[] }> {
+  const gmail = await gmailClient();
+  const { data } = await gmail.users.messages.untrash({ userId: 'me', id: messageId });
+  return { id: messageId, labels: data.labelIds ?? [] };
 }

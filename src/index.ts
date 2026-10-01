@@ -2,7 +2,15 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { createDraft, listLabels, readMessage, searchMessages } from './gmail.js';
+import {
+  createDraft,
+  listLabels,
+  readMessage,
+  searchMessages,
+  sendMessage,
+  trashMessage,
+  untrashMessage,
+} from './gmail.js';
 
 const server = new McpServer({ name: 'gmail-personal', version: '0.1.0' });
 
@@ -89,6 +97,66 @@ server.registerTool(
   async ({ to, subject, body }) => {
     try {
       return asText({ draft_id: await createDraft(to, subject, body) });
+    } catch (err) {
+      return asError(err);
+    }
+  },
+);
+
+server.registerTool(
+  'trash_email',
+  {
+    title: 'Mover un correo a la papelera',
+    description:
+      'Mueve un mensaje a la papelera de Gmail, igual que el boton de borrar de la interfaz. ' +
+      'Es reversible: Gmail lo conserva 30 dias y untrash_email lo devuelve a su sitio. ' +
+      'Este servidor no puede borrar de forma permanente.',
+    inputSchema: { message_id: z.string().describe('id devuelto por search_emails') },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+  },
+  async ({ message_id }) => {
+    try {
+      return asText(await trashMessage(message_id));
+    } catch (err) {
+      return asError(err);
+    }
+  },
+);
+
+server.registerTool(
+  'untrash_email',
+  {
+    title: 'Sacar un correo de la papelera',
+    description: 'Deshace un trash_email: devuelve el mensaje desde la papelera a su ubicacion previa.',
+    inputSchema: { message_id: z.string().describe('id del mensaje que esta en la papelera') },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  },
+  async ({ message_id }) => {
+    try {
+      return asText(await untrashMessage(message_id));
+    } catch (err) {
+      return asError(err);
+    }
+  },
+);
+
+server.registerTool(
+  'send_email',
+  {
+    title: 'Enviar un correo',
+    description:
+      'Envia un correo inmediatamente desde la cuenta. No tiene vuelta atras: una vez enviado ' +
+      'no se puede retirar. Para dejarlo revisable por el humano, usa create_draft en su lugar.',
+    inputSchema: {
+      to: z.string().describe('Destinatario'),
+      subject: z.string(),
+      body: z.string(),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+  },
+  async ({ to, subject, body }) => {
+    try {
+      return asText(await sendMessage(to, subject, body));
     } catch (err) {
       return asError(err);
     }

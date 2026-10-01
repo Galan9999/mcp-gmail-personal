@@ -59,9 +59,18 @@ pnpm auth        # abre la URL con la SEGUNDA cuenta y acepta
 | `read_email` | Lectura. Cuerpo completo en texto plano. |
 | `list_labels` | Lectura. |
 | `create_draft` | Escritura, pero **solo borradores**. Enviar se queda fuera a propósito: el envío lo decide un humano. |
+| `trash_email` | Escritura. Mueve a la papelera, igual que el botón de borrar de Gmail. Reversible 30 días. |
+| `untrash_email` | Escritura. Deshace lo anterior. |
 
-Los scopes pedidos son `gmail.readonly` y `gmail.compose`. No se pide `gmail.send` ni
-`gmail.modify`, así que el servidor no puede enviar ni borrar aunque se lo pidas.
+El scope pedido es **`gmail.modify`**, uno solo. Google lo describe de forma alarmante («leer,
+redactar, enviar y eliminar permanentemente»), así que conviene separar dos cosas:
+
+- **El scope marca el techo**: lo máximo que la app *podría* llegar a hacer.
+- **El código marca el suelo**: lo que realmente hace. Aquí, seis herramientas y ninguna que envíe.
+
+Y hay un límite que no depende del código: `gmail.modify` **no permite el borrado permanente**. Eso
+exige el scope total `https://mail.google.com/`, que este servidor no pide. La papelera es
+reversible porque Google no le concedería otra cosa, no porque el código se porte bien.
 
 ## Depurar
 
