@@ -12,10 +12,12 @@ import {
   searchMessages,
   sendDraft,
   setGmailSignature,
+  setLabelColor,
   trashMessage,
   untrashMessage,
 } from './gmail.js';
-import { signatureHtml, voiceGuide } from './style.js';
+import { labelPalette, signatureHtml, voiceGuide } from './style.js';
+import { GMAIL_LABEL_COLORS } from './generated/palette.js';
 
 const CONFIRMATION_TTL_MS = 5 * 60 * 1000;
 const pendingSends = new Map<string, { draftId: string; to: string; expiresAt: number }>();
@@ -252,6 +254,56 @@ server.registerTool(
         confirmation_token: stashConfirmation(draftId, preview.to),
         caduca_en: '5 minutos',
       });
+    } catch (err) {
+      return asError(err);
+    }
+  },
+);
+
+server.registerTool(
+  'list_label_colors',
+  {
+    title: 'Colores que Gmail acepta',
+    description:
+      'Gmail no acepta cualquier hex en una etiqueta: solo una paleta cerrada. Devuelve esa lista ' +
+      'junto a la paleta con significado del proyecto (style/paleta.json).',
+    inputSchema: {},
+    annotations: { readOnlyHint: true },
+  },
+  async () => {
+    try {
+      const { leyenda, etiquetas } = await labelPalette();
+      return asText({ permitidos: GMAIL_LABEL_COLORS, total: GMAIL_LABEL_COLORS.length, leyenda, etiquetas });
+    } catch (err) {
+      return asError(err);
+    }
+  },
+);
+
+server.registerTool(
+  'set_label_color',
+  {
+    title: 'Colorear una etiqueta',
+    description:
+      'Cambia el color de una etiqueta tuya. Los dos colores deben estar en la paleta cerrada de ' +
+      'Gmail: usa list_label_colors. Las etiquetas de sistema (INBOX, SENT, CATEGORY_*) no admiten color.',
+    inputSchema: {
+      label_id: z.string().describe('id de la etiqueta, p. ej. Label_4 (de list_labels)'),
+      background_color: z.string().describe('Hex de fondo, de la paleta permitida'),
+      text_color: z.string().describe('Hex de texto, de la paleta permitida'),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  },
+  async ({ label_id, background_color, text_color }) => {
+    try {
+      for (const [campo, valor] of [['background_color', background_color], ['text_color', text_color]] as const) {
+        if (!GMAIL_LABEL_COLORS.includes(valor.toLowerCase())) {
+          return asError(
+            new Error(`${campo}="${valor}" no esta en la paleta de Gmail. Llama a list_label_colors.`),
+          );
+        }
+      }
+      return asText(await setLabelColor(label_id, background_color.toLowerCase(), text_color.toLowerCase()));
     } catch (err) {
       return asError(err);
     }

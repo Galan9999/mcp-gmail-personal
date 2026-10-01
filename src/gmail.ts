@@ -194,3 +194,22 @@ export async function readDraft(draftId: string): Promise<{ to: string; subject:
     preview: flattenBody(payload).slice(0, 400),
   };
 }
+
+export async function setLabelColor(
+  labelId: string,
+  backgroundColor: string,
+  textColor: string,
+): Promise<{ id: string; name: string; backgroundColor: string; textColor: string }> {
+  const gmail = await gmailClient();
+  const { data } = await gmail.users.labels.patch({
+    userId: 'me',
+    id: labelId,
+    requestBody: { color: { backgroundColor, textColor } },
+  });
+  return {
+    id: data.id ?? labelId,
+    name: data.name ?? '',
+    backgroundColor: data.color?.backgroundColor ?? '',
+    textColor: data.color?.textColor ?? '',
+  };
+}

@@ -30,3 +30,13 @@ export async function signatureText(): Promise<string> {
     .filter(Boolean)
     .join('\n');
 }
+
+export type PaletteEntry = { backgroundColor: string; textColor: string; porque: string };
+
+export async function labelPalette(): Promise<{ leyenda: string; etiquetas: Record<string, PaletteEntry> }> {
+  const raw = JSON.parse(await load('paleta.json')) as {
+    _leyenda: string;
+    etiquetas: Record<string, PaletteEntry>;
+  };
+  return { leyenda: raw._leyenda, etiquetas: raw.etiquetas };
+}
