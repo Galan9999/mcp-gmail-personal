@@ -9,7 +9,9 @@ import {
   createLabel,
   deleteFilter,
   getGmailSignature,
+  bulkModify,
   listFilters,
+  listMessageIds,
   listLabels,
   modifyLabels,
   readDraft,
@@ -472,6 +474,33 @@ server.registerTool(
   async ({ filter_id }) => {
     try {
       return asText(await deleteFilter(filter_id));
+    } catch (err) {
+      return asError(err);
+    }
+  },
+);
+
+server.registerTool(
+  'bulk_label',
+  {
+    title: 'Etiquetar en bloque lo ya recibido',
+    description:
+      'Aplica etiquetas a TODO lo que case con una consulta de Gmail, en lotes de 1000 por llamada. ' +
+      'Actua sobre el correo que YA tienes, al reves que create_filter, que solo mira lo que llegue. ' +
+      'Con `dry_run` (por defecto) solo cuenta, no toca nada. Ponlo a false para aplicar.',
+    inputSchema: {
+      query: z.string().describe('Consulta en sintaxis de Gmail, p. ej. from:wikiloc.com'),
+      add: z.array(z.string()).default([]).describe('ids de etiqueta a poner'),
+      remove: z.array(z.string()).default([]).describe('ids a quitar. INBOX archiva'),
+      dry_run: z.boolean().default(true),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+  },
+  async ({ query, add, remove, dry_run }) => {
+    try {
+      const ids = await listMessageIds(query);
+      if (dry_run) return asText({ aplicado: false, casarian: ids.length, query });
+      return asText({ aplicado: true, modificados: await bulkModify(ids, add, remove), query });
     } catch (err) {
       return asError(err);
     }

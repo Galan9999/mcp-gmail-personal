@@ -351,3 +351,36 @@ export async function deleteFilter(filterId: string): Promise<{ id: string }> {
   await gmail.users.settings.filters.delete({ userId: 'me', id: filterId });
   return { id: filterId };
 }
+
+export async function listMessageIds(query: string): Promise<string[]> {
+  const gmail = await gmailClient();
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+  do {
+    const { data } = await withRetry(() =>
+      gmail.users.messages.list({ userId: 'me', q: query, maxResults: 500, pageToken }),
+    );
+    for (const m of data.messages ?? []) if (m.id) ids.push(m.id);
+    pageToken = data.nextPageToken ?? undefined;
+  } while (pageToken);
+  return ids;
+}
+
+export async function bulkModify(
+  ids: string[],
+  addLabelIds: string[],
+  removeLabelIds: string[],
+): Promise<number> {
+  if (ids.length === 0) return 0;
+  const gmail = await gmailClient();
+  for (let i = 0; i < ids.length; i += 1000) {
+    const lote = ids.slice(i, i + 1000);
+    await withRetry(() =>
+      gmail.users.messages.batchModify({
+        userId: 'me',
+        requestBody: { ids: lote, addLabelIds, removeLabelIds },
+      }),
+    );
+  }
+  return ids.length;
+}
