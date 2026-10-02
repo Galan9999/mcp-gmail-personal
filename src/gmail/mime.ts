@@ -48,17 +48,23 @@ export function decode(data: string | null | undefined): string {
   return data ? Buffer.from(data, 'base64url').toString('utf8') : '';
 }
 
-/** Aplana un multipart a texto plano; si solo hay html, le quita las etiquetas. */
+/** Quita el CSS y los scripts enteros (no solo sus etiquetas) y despues el resto del marcado. */
+export function htmlToText(html: string): string {
+  return html
+    .replace(/<(style|script|head)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&zwnj;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Aplana un multipart a texto plano; si solo hay html, lo convierte a texto. */
 export function flattenBody(part: gmail_v1.Schema$MessagePart | undefined): string {
   if (!part) return '';
   if (part.mimeType === 'text/plain' && part.body?.data) return decode(part.body.data);
   const fromChildren = (part.parts ?? []).map(flattenBody).filter(Boolean);
   if (fromChildren.length > 0) return fromChildren.join('\n\n');
-  if (part.mimeType === 'text/html' && part.body?.data) {
-    return decode(part.body.data)
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
+  if (part.mimeType === 'text/html' && part.body?.data) return htmlToText(decode(part.body.data));
   return '';
 }

@@ -38,6 +38,15 @@ describe('flattenBody', () => {
     expect(body).toBe('uno\n\ndos');
   });
 
+  it('si solo hay html, descarta el CSS y los comentarios enteros, no solo sus etiquetas', () => {
+    const html =
+      '<html><head><style>body { margin: 0; } a:hover { color: red; }</style></head>' +
+      '<body><!-- preheader -->&nbsp;&zwnj;&nbsp;<p>Hello Carles,</p><script>track()</script><p>confirm your occupation.</p></body></html>';
+    expect(flattenBody({ mimeType: 'text/html', body: { data: b64(html) } })).toBe(
+      'Hello Carles, confirm your occupation.',
+    );
+  });
+
   it('si solo hay html, quita las etiquetas', () => {
     expect(flattenBody({ mimeType: 'text/html', body: { data: b64('<p>Hola  <b>mundo</b></p>') } })).toBe(
       'Hola mundo',
