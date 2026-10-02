@@ -1,0 +1,10 @@
+{
+  "matcher": "mcp__gmail-personal__send_email",
+  "hooks": [
+    {
+      "type": "command",
+      "command": "bash /Users/cgala/Desktop/dades/personal/mcp-gmail-personal/hooks/guard-send-email.sh",
+      "timeout": 10
+    }
+  ]
+}

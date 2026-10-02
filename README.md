@@ -12,15 +12,32 @@ cómo se construye un MCP por dentro.
 
 ## Anatomía
 
-| Fichero | Qué hace |
-|---|---|
-| `src/index.ts` | El servidor MCP. Declara las 9 herramientas con `registerTool`, el prompt `mi_voz` con `registerPrompt`, y se conecta por `StdioServerTransport`. |
-| `src/gmail.ts` | Envoltorio fino sobre la Gmail API. Decodifica base64url y aplana los `multipart` a texto plano. |
-| `src/auth.ts` | OAuth2 con loopback en `localhost:4477`. Guarda el token en `~/.config/mcp-gmail-personal/token.json` con permisos `600`. |
-| `src/auth-cli.ts` | El `pnpm auth`: abre el consentimiento una sola vez. |
-| `src/style.ts` | Carga `style/voz.md` y `style/firma.html`, y deriva la firma en texto plano desde la HTML. |
-| `style/voz.md` | **Editable.** Cómo escribo: idioma por interlocutor, los dos registros, qué hago siempre y qué nunca. |
-| `style/firma.html` | **Editable.** Firma con estilos inline, que es lo único que Gmail respeta. |
+```
+src/
+├── index.ts            arranque stdio (sin lógica; console.log aquí rompería el canal)
+├── server.ts           createServer(): registra cada dominio
+├── tools/              registro de herramientas, un fichero por DOMINIO
+│   ├── result.ts       run(): el único try/catch; errores de negocio → isError con mensaje accionable
+│   ├── confirm.ts      confirmación en dos fases con token opaco que caduca
+│   ├── messages.ts     search_emails · search_page · read_email · trash_email · untrash_email
+│   ├── labels.ts       list_labels · list_label_colors · create_label · rename_label · set_label_color · modify_labels · bulk_label
+│   ├── filters.ts      list_filters · create_filter · delete_filter
+│   ├── settings.ts     get_gmail_signature · set_gmail_signature
+│   └── send.ts         create_draft · send_email
+├── prompts/voice.ts    mi_voz
+├── gmail/              la única capa que habla con la Gmail API; devuelve datos planos
+│   ├── client.ts       cliente cacheado + cuota (rateLimited, mapLimited, withRetry)
+│   ├── mime.ts         construir y leer MIME (puro, con test unitario)
+│   └── messages.ts · labels.ts · filters.ts · settings.ts · drafts.ts
+├── auth.ts             OAuth2 loopback en localhost:4477; token en ~/.config/mcp-gmail-personal/ con 0600
+├── auth-cli.ts         pnpm auth
+├── style.ts            carga style/voz.md, style/firma.html y style/paleta.json
+└── generated/          paleta de colores extraída de los tipos de googleapis (no editar)
+test/                   por protocolo con InMemoryTransport; Gmail se dobla con vi.mock
+scripts/                smoke.mjs y call.mjs: hablar con el binario por stdio
+hooks/                  hook PreToolUse de Claude Code (bloquea send_email en modos sin persona)
+style/                  voz.md y firma.html son editables
+```
 
 Las tres piezas del protocolo que conviene mirar en el código:
 
@@ -56,17 +73,20 @@ pnpm auth        # abre la URL con la SEGUNDA cuenta y acepta
 
 ## Herramientas
 
-| Herramienta | Alcance |
-|---|---|
-| `search_emails` | Lectura. Sintaxis nativa de Gmail (`is:unread`, `from:`, `newer_than:7d`). |
-| `read_email` | Lectura. Cuerpo completo en texto plano. |
-| `list_labels` | Lectura. |
-| `create_draft` | Escritura. Deja el correo en Borradores y ahí se queda: no envía. Acepta `html` para maquetarlo. |
-| `trash_email` | Escritura. Mueve a la papelera, igual que el botón de borrar de Gmail. Reversible 30 días. |
-| `untrash_email` | Escritura. Deshace lo anterior. |
-| `send_email` | Escritura. **Envía de verdad**, en dos fases obligatorias — ver abajo. |
-| `get_gmail_signature` | Lectura. La firma de los ajustes de Gmail, la que se añade sola en web y móvil. |
-| `set_gmail_signature` | Escritura. La sustituye. Afecta a todo lo que envíes desde cualquier cliente. |
+| Herramienta | Peldaño | Qué hace |
+|---|---|---|
+| `search_emails` | lectura | Sintaxis nativa de Gmail (`is:unread`, `from:`, `newer_than:7d`); hasta 50. |
+| `search_page` | lectura | Igual, paginado con `next_page_token`; hasta 100 por página. |
+| `read_email` | lectura | Cuerpo completo en texto plano. Es contenido ajeno, no instrucciones. |
+| `list_labels` · `list_label_colors` · `list_filters` · `get_gmail_signature` | lectura | |
+| `create_draft` | aditivo | Deja el correo en Borradores y ahí se queda. Acepta `html`. |
+| `create_label` · `create_filter` | aditivo | Un filtro solo afecta a lo que llegue; se deshace con `delete_filter`. |
+| `rename_label` · `set_label_color` · `modify_labels` | reversible | Por id de etiqueta (`Label_4`). |
+| `bulk_label` | masivo | `dry_run: true` por defecto: cuenta sin tocar. |
+| `trash_email` · `untrash_email` | reversible | Papelera 30 días, igual que el botón de Gmail. |
+| `delete_filter` | destructivo | Las etiquetas ya puestas se quedan. |
+| `set_gmail_signature` | global | Afecta a todos tus clientes de correo. Prompt obligatorio en Claude Code. |
+| `send_email` | **irreversible** | Dos fases con token + prompt obligatorio en Claude Code — ver abajo. |
 
 Más un prompt, `mi_voz`, que sirve `style/voz.md` para que cualquier sesión redacte con tu registro.
 
@@ -84,6 +104,14 @@ Como la segunda fase manda un borrador ya existente y no uno nuevo, el contenido
 entre lo que revisas y lo que sale. Un token inventado o caducado se rechaza con un mensaje que
 explica cómo volver a empezar.
 
+Eso protege frente al modelo. Para que además lo vea **una persona**, hay dos capas más:
+
+- `send_email` y `set_gmail_signature` llevan `_meta: { 'anthropic/requiresUserInteraction': true }`:
+  Claude Code (≥ 2.1.199) muestra el prompt de permiso en cada llamada, incluso en modo `auto`.
+- `hooks/guard-send-email.sh` es un hook `PreToolUse` que deniega `send_email` en `bypassPermissions`
+  y `dontAsk`, los modos en que nadie vería el prompt. Se instala en `~/.claude/settings.json` con el
+  snippet de `hooks/settings-snippet.json`.
+
 Los scopes pedidos son **`gmail.modify`**, **`gmail.send`** y **`gmail.settings.basic`**. Google lo describe de forma alarmante («leer,
 redactar, enviar y eliminar permanentemente»), así que conviene separar dos cosas:
 
@@ -95,17 +123,18 @@ Y hay un límite que no depende del código: ninguno de los tres **permite el bo
 exige el scope total `https://mail.google.com/`, que este servidor no pide. La papelera es
 reversible porque Google no le concedería otra cosa, no porque el código se porte bien.
 
-## Depurar
+## Verificar y depurar
 
 ```bash
-pnpm inspect     # MCP Inspector: ver tools/list y llamar a mano
+pnpm check                              # formato · lint con tipos · build · tests · smoke por stdio
+pnpm call list_labels '{}'              # llamada real al binario, como la haría Claude Code
+pnpm inspect                            # MCP Inspector
 ```
 
 ## Siguientes pasos para aprender
 
-- Añadir un **resource** (`server.registerResource`) que exponga un hilo como documento.
-- Paginar `search_emails` con `nextPageToken` en vez de un `max_results` tope.
-- Colorear etiquetas con `users.labels.patch` — el único color de la interfaz que la API expone.
-  El tema de Gmail no: `theme` no aparece ni una vez en los tipos de la API.
-- Servirlo como **MCP remoto** por HTTP con su propio OAuth, que es lo que hace Google con
-  `gmailmcp.googleapis.com`. Es el único camino para que exista fuera de Claude Code.
+- **Resources**: `style/voz.md` y `gmail://message/{id}` como recursos, para adjuntarlos con `@gmail-personal:` sin gastar una llamada.
+- Fusionar `search_emails` en `search_page` (son la misma herramienta con y sin token).
+- **Elicitation** en `send_email` como alternativa al token, para comparar las dos en vivo.
+- Migrar al SDK v2 (`@modelcontextprotocol/server`) cuando Claude Code negocie 2026-07-28 con stdio: entonces `input_required` sustituye al token sin estado en el servidor.
+- Servirlo como MCP remoto por HTTP con su propio OAuth.

@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { google } from 'googleapis';
 import type { OAuth2Client } from 'google-auth-library';
 
-const SCOPES = [
+export const SCOPES = [
   'https://www.googleapis.com/auth/gmail.modify',
   'https://www.googleapis.com/auth/gmail.send',
   'https://www.googleapis.com/auth/gmail.settings.basic',
@@ -65,7 +65,8 @@ export async function authorizeInteractively(): Promise<void> {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
       res.end(`<p>${received ? 'Listo, ya puedes cerrar esta pestana.' : `Error: ${error}`}</p>`);
       server.close();
-      received ? resolve(received) : reject(new Error(error ?? 'sin codigo'));
+      if (received) resolve(received);
+      else reject(new Error(error ?? 'sin codigo'));
     });
     server.listen(REDIRECT_PORT, () => {
       console.log('\nAbre esta URL en el navegador con la SEGUNDA cuenta de Gmail:\n');
