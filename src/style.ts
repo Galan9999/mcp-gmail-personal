@@ -4,8 +4,17 @@ import { fileURLToPath } from 'node:url';
 
 const STYLE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'style');
 
+// Primero el .local (tus datos, fuera de git), si no la plantilla versionada.
 async function load(name: string): Promise<string> {
-  return (await readFile(join(STYLE_DIR, name), 'utf8')).trim();
+  const local = name.replace(/\.([^.]+)$/, '.local.$1');
+  for (const candidate of [local, name]) {
+    try {
+      return (await readFile(join(STYLE_DIR, candidate), 'utf8')).trim();
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+    }
+  }
+  throw new Error(`No encuentro style/${name} ni style/${local}`);
 }
 
 export async function voiceGuide(): Promise<string> {

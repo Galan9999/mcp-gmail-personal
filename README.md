@@ -36,7 +36,7 @@ src/
 test/                   por protocolo con InMemoryTransport; Gmail se dobla con vi.mock
 scripts/                smoke.mjs y call.mjs: hablar con el binario por stdio
 hooks/                  hook PreToolUse de Claude Code (bloquea send_email en modos sin persona)
-style/                  voz.md y firma.html son editables
+style/                  voz.md y firma.html son plantillas; manda el .local si existe
 ```
 
 Las tres piezas del protocolo que conviene mirar en el código:
@@ -49,6 +49,10 @@ Las tres piezas del protocolo que conviene mirar en el código:
    lanzando una excepción.
 
 ## Puesta en marcha
+
+> **¿Instalas esto por primera vez, o se lo pasas a alguien?** La guía paso a paso, con la
+> parte de Google Cloud explicada entera y qué hacer cuando algo falla, está en
+> **[`docs/INSTALAR.md`](docs/INSTALAR.md)**. Lo de aquí abajo es el resumen.
 
 Hay un paso que no puede hacer nadie más que tú, porque es tu cuenta de Google:
 
@@ -89,6 +93,10 @@ pnpm auth        # abre la URL con la SEGUNDA cuenta y acepta
 | `send_email` | **irreversible** | Dos fases con token + prompt obligatorio en Claude Code — ver abajo. |
 
 Más un prompt, `mi_voz`, que sirve `style/voz.md` para que cualquier sesión redacte con tu registro.
+
+`style/firma.html` y `style/voz.md` son plantillas neutras. Copia cada una a su `.local`
+(`firma.local.html`, `voz.local.md`) y edita ahí: el servidor prefiere el `.local` y git lo ignora,
+así tus datos no viajan con el repo.
 
 ## El envío son dos llamadas, no una
 
