@@ -3,7 +3,7 @@
   "hooks": [
     {
       "type": "command",
-      "command": "bash /Users/cgala/Desktop/dades/personal/mcp-gmail-personal/hooks/guard-send-email.sh",
+      "command": "bash /ruta/absoluta/a/mcp-gmail-personal/hooks/guard-send-email.sh",
       "timeout": 10
     }
   ]
