@@ -1,16 +1,49 @@
-# mcp-gmail-personal
+<div align="center">
 
-Servidor MCP propio, escrito desde cero en TypeScript, que expone una **segunda cuenta de Gmail**
-como herramientas de Claude Code. No es un conector de Anthropic ni de Google: es código tuyo,
-arrancado como proceso local y hablando el protocolo por stdio.
+# 📬 mcp-gmail-personal
 
-## Por qué existe
+**Una segunda cuenta de Gmail dentro de Claude Code, con un servidor MCP escrito desde cero.**
 
-El Gmail que ya tienes conectado es un MCP remoto de Google (`gmailmcp.googleapis.com`) con una
-sola cuenta por OAuth. Este proyecto resuelve la segunda cuenta y, de paso, sirve para aprender
-cómo se construye un MCP por dentro.
+No es un conector de Anthropic ni de Google: es código propio, arrancado como proceso local y hablando
+el protocolo por stdio.
 
-## Anatomía
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
+![MCP SDK](https://img.shields.io/badge/MCP-stdio-D97757)
+![Node](https://img.shields.io/badge/node-%E2%89%A522-5FA04E?logo=nodedotjs&logoColor=white)
+![Gmail API](https://img.shields.io/badge/Gmail_API-OAuth2_local-EA4335?logo=gmail&logoColor=white)
+![Herramientas](https://img.shields.io/badge/herramientas-19-D97757)
+![Vitest](https://img.shields.io/badge/tests-por_protocolo-6E9F18?logo=vitest&logoColor=white)
+
+</div>
+
+---
+
+## 💡 Por qué existe
+
+El Gmail que ya tienes conectado es un MCP remoto de Google (`gmailmcp.googleapis.com`) con **una sola
+cuenta** por OAuth. Este proyecto resuelve la segunda y, de paso, sirve para aprender cómo se construye un
+MCP por dentro: transporte, esquemas, errores, permisos y qué hacer cuando una herramienta puede enviar
+algo que no se puede deshacer.
+
+| | |
+|---|---|
+| 🔎 **Leer** | Buscar con la sintaxis de Gmail, paginar y leer correos completos en texto plano |
+| 🏷️ **Ordenar** | Etiquetas con colores que significan algo, filtros y etiquetado masivo con `dry_run` |
+| ✍️ **Escribir** | Borradores con tu firma, y un prompt `mi_voz` para redactar con tu registro |
+| 📤 **Enviar** | Solo detrás de tres barreras: token de dos fases, prompt obligatorio y un hook local |
+| 🗑️ **Borrar** | Solo a la papelera: los permisos que pide no permiten el borrado permanente |
+
+```mermaid
+flowchart LR
+    cc([Claude Code]) <-->|JSON-RPC por stdio| srv
+    subgraph srv[mcp-gmail-personal]
+        tools[tools/<br/>un fichero por dominio] --> gmail[gmail/<br/>única capa que habla con la API]
+    end
+    gmail <-->|OAuth2 en localhost| api[(Gmail API<br/>segunda cuenta)]
+    hook{{hook PreToolUse<br/>guard-send-email.sh}} -.->|deniega send_email<br/>sin persona delante| cc
+```
+
+## 🧬 Anatomía
 
 ```
 src/
@@ -49,7 +82,7 @@ Las tres piezas del protocolo que conviene mirar en el código:
 3. **`tools/call`** — el callback devuelve `content[]`. Un fallo se marca con `isError: true`, no
    lanzando una excepción.
 
-## Puesta en marcha
+## 🚀 Puesta en marcha
 
 > **¿Instalas esto por primera vez, o se lo pasas a alguien?** La guía paso a paso, con la
 > parte de Google Cloud explicada entera y qué hacer cuando algo falla, está en
@@ -76,7 +109,7 @@ pnpm build
 pnpm auth        # abre la URL con la SEGUNDA cuenta y acepta
 ```
 
-## Herramientas
+## 🧰 Herramientas
 
 | Herramienta | Peldaño | Qué hace |
 |---|---|---|
@@ -104,7 +137,21 @@ de datos; `paleta.json` trae una leyenda de colores de ejemplo (ver `style/palet
 su `.local` (`firma.local.html`, `voz.local.md`, `paleta.local.json`) y edita ahí: el servidor prefiere
 el `.local` y git lo ignora (`style/*.local.*`), así tus datos no viajan con el repo.
 
-## El envío son dos llamadas, no una
+## 📤 El envío son dos llamadas, no una
+
+```mermaid
+sequenceDiagram
+    participant C as Claude
+    participant S as send_email
+    participant P as Tú
+    C->>S: send_email(to, subject, body)
+    S-->>C: borrador creado + vista previa + token (5 min)
+    Note over C,P: Claude Code muestra el prompt de permiso en cada llamada
+    C->>P: ¿enviar este borrador?
+    P-->>C: sí
+    C->>S: send_email(confirmation_token)
+    S-->>C: enviado: ese borrador, por su id
+```
 
 Las anotaciones de MCP (`destructiveHint`, `openWorldHint`) son **pistas**: quien decide si pregunta
 al humano es el cliente, no el servidor. Para que la confirmación no dependa de esa buena voluntad,
@@ -143,7 +190,7 @@ Y hay un límite que no depende del código: ninguno de los tres **permite el bo
 exige el scope total `https://mail.google.com/`, que este servidor no pide. La papelera es
 reversible porque Google no le concedería otra cosa, no porque el código se porte bien.
 
-## Verificar y depurar
+## ✅ Verificar y depurar
 
 ```bash
 pnpm check                              # formato · lint con tipos · build · tests · smoke por stdio
@@ -151,7 +198,7 @@ pnpm call list_labels '{}'              # llamada real al binario, como la harí
 pnpm inspect                            # MCP Inspector
 ```
 
-## Siguientes pasos para aprender
+## 🌱 Siguientes pasos para aprender
 
 - **Hilos, copias y adjuntos**: `reply_draft` con `thread_id` (`In-Reply-To`/`References` en `mime.ts`),
   `cc`/`bcc` en `create_draft`, y adjuntos. Son los tres huecos que primero se notan al usarlo.
