@@ -1,5 +1,14 @@
 # Informe: profesionalizar `mcp-gmail-personal`
 
+> **Documento histórico (2026-10-01).** Describe el repo tal como estaba antes del commit `ed4643f`
+> y propone cambios. De lo que propone, ya está hecho: el reparto por dominios (`src/tools/*`,
+> `src/gmail/*`), `run` en `tools/result.ts` (aquí se llama `withErrors`), `gmail/mime.ts` con test,
+> `_meta['anthropic/requiresUserInteraction']` en `send_email` y `set_gmail_signature`,
+> `openWorldHint: false` en el resto, el test de scopes, la nota anti-inyección en `read_email`, el
+> smoke por stdio (`scripts/smoke.mjs`) y 19 tests por protocolo. Siguen pendientes los puntos 4 y 5
+> del §9 y las ideas del §8. El estado actual está en `README.md` y `CLAUDE.md`; esto se conserva por
+> el razonamiento y las fuentes.
+
 Respuesta al prompt de `docs/PROMPT-investigacion.md`, con una ventaja sobre un chat genérico: está
 hecha leyendo el código real y verificando cada afirmación contra la versión instalada del SDK
 (1.31.0), de Claude Code (2.1.212) y de Node (26.7). Fecha: 2026-10-01.

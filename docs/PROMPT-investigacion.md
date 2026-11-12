@@ -1,5 +1,10 @@
 # Prompt para un chat de investigación
 
+> **Documento histórico (octubre de 2026).** Describe el repo antes de ordenarlo: un `src/index.ts`
+> de 528 líneas, un `src/gmail.ts` y sin linter ni tests. Nada de eso es ya así (ver `README.md`). Su
+> respuesta está en `INFORME-profesionalizacion.md`. Se conserva como ejemplo de cómo pedir una
+> investigación anclada en el código real.
+
 Copia todo lo que hay bajo la línea en un chat nuevo. Está escrito para que la respuesta sea
 accionable sobre este proyecto concreto, no un artículo genérico sobre MCP.
 

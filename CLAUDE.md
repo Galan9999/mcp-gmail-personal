@@ -31,8 +31,9 @@ castellano.
 2. `server.registerTool` en `src/tools/<dominio>.ts` con `title`, `description`, `inputSchema` (zod, cada
    campo con `.describe()`) y los cuatro `annotations`. Handler: `run(() => ...)`.
 3. Test en `test/`: aparece en `tools/list` con sus anotaciones y, si valida algo, un caso que falle sin Gmail.
+   `test/server.test.ts` fija el número total de herramientas (`toHaveLength`): súbelo en uno.
 4. `pnpm check` y después `pnpm call` con un caso real. Compilar no es verificar.
-5. Fila en la tabla de herramientas del `README.md`.
+5. Fila en la tabla de herramientas del `README.md` y, si toca, en el árbol de «Anatomía».
 
 ## Reglas de las herramientas
 

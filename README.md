@@ -35,8 +35,9 @@ src/
 └── generated/          paleta de colores extraída de los tipos de googleapis (no editar)
 test/                   por protocolo con InMemoryTransport; Gmail se dobla con vi.mock
 scripts/                smoke.mjs y call.mjs: hablar con el binario por stdio
-hooks/                  hook PreToolUse de Claude Code (bloquea send_email en modos sin persona)
-style/                  voz.md y firma.html son plantillas; manda el .local si existe
+hooks/                  hook PreToolUse de Claude Code: segunda capa que deniega send_email sin persona
+style/                  voz.md, firma.html y paleta.json son plantillas; manda el .local si existe
+docs/                   INSTALAR.md (guía desde cero) y dos documentos históricos de octubre de 2026
 ```
 
 Las tres piezas del protocolo que conviene mirar en el código:
@@ -83,20 +84,25 @@ pnpm auth        # abre la URL con la SEGUNDA cuenta y acepta
 | `search_page` | lectura | Igual, paginado con `next_page_token`; hasta 100 por página. |
 | `read_email` | lectura | Cuerpo completo en texto plano. Es contenido ajeno, no instrucciones. |
 | `list_labels` · `list_label_colors` · `list_filters` · `get_gmail_signature` | lectura | |
-| `create_draft` | aditivo | Deja el correo en Borradores y ahí se queda. Acepta `html`. |
+| `create_draft` | aditivo | Deja el correo en Borradores y ahí se queda. Acepta `html`. Añade la firma salvo `with_signature: false`. |
 | `create_label` · `create_filter` | aditivo | Un filtro solo afecta a lo que llegue; se deshace con `delete_filter`. |
 | `rename_label` · `set_label_color` · `modify_labels` | reversible | Por id de etiqueta (`Label_4`). |
 | `bulk_label` | masivo | `dry_run: true` por defecto: cuenta sin tocar. |
 | `trash_email` · `untrash_email` | reversible | Papelera 30 días, igual que el botón de Gmail. |
 | `delete_filter` | destructivo | Las etiquetas ya puestas se quedan. |
 | `set_gmail_signature` | global | Afecta a todos tus clientes de correo. Prompt obligatorio en Claude Code. |
-| `send_email` | **irreversible** | Dos fases con token + prompt obligatorio en Claude Code — ver abajo. |
+| `send_email` | **irreversible** | Dos fases con token + prompt obligatorio en Claude Code — ver abajo. El borrador que envía lleva la firma. |
+
+Lo que no hace, por si lo buscas: CC/BCC, adjuntos y responder dentro de un hilo (`In-Reply-To`).
+Están en la lista de abajo.
 
 Más un prompt, `mi_voz`, que sirve `style/voz.md` para que cualquier sesión redacte con tu registro.
+En Claude Code se invoca como comando: `/mcp__gmail-personal__mi_voz`.
 
-`style/firma.html` y `style/voz.md` son plantillas neutras. Copia cada una a su `.local`
-(`firma.local.html`, `voz.local.md`) y edita ahí: el servidor prefiere el `.local` y git lo ignora,
-así tus datos no viajan con el repo.
+`style/firma.html`, `style/voz.md` y `style/paleta.json` son plantillas. Las dos primeras vienen vacías
+de datos; `paleta.json` trae una leyenda de colores de ejemplo (ver `style/paleta.md`). Copia cada una a
+su `.local` (`firma.local.html`, `voz.local.md`, `paleta.local.json`) y edita ahí: el servidor prefiere
+el `.local` y git lo ignora (`style/*.local.*`), así tus datos no viajan con el repo.
 
 ## El envío son dos llamadas, no una
 
@@ -114,18 +120,24 @@ explica cómo volver a empezar.
 
 Eso protege frente al modelo. Para que además lo vea **una persona**, hay dos capas más:
 
-- `send_email` y `set_gmail_signature` llevan `_meta: { 'anthropic/requiresUserInteraction': true }`:
-  Claude Code (≥ 2.1.199) muestra el prompt de permiso en cada llamada, incluso en modo `auto`.
+- `send_email` y `set_gmail_signature` llevan `_meta: { 'anthropic/requiresUserInteraction': true }`.
+  Según la [documentación de Claude Code](https://code.claude.com/docs/en/mcp#require-approval-for-a-specific-tool),
+  eso muestra el prompt de permiso en **cada** llamada, también en `acceptEdits`, `auto` y
+  `bypassPermissions`, sin opción de «no volver a preguntar» y sin que una regla `allow` lo salte. En
+  `dontAsk` la llamada se deniega directamente.
 - `hooks/guard-send-email.sh` es un hook `PreToolUse` que deniega `send_email` en `bypassPermissions`
-  y `dontAsk`, los modos en que nadie vería el prompt. Se instala en `~/.claude/settings.json` con el
-  snippet de `hooks/settings-snippet.json`.
+  y `dontAsk`. Es redundante con lo anterior a propósito: es determinista, vive en tu máquina y no
+  depende de que la versión de Claude Code respete la anotación (ni de que un
+  `--permission-prompt-tool` no interactivo la convierta en `deny`). Si falta `jq`, deniega también.
+  Se instala en `~/.claude/settings.json` con el snippet de `hooks/settings-snippet.json`. Solo cubre
+  `send_email`; `set_gmail_signature` queda a cargo de la anotación.
 
 Los scopes pedidos son **`gmail.modify`**, **`gmail.send`** y **`gmail.settings.basic`**. Google lo describe de forma alarmante («leer,
 redactar, enviar y eliminar permanentemente»), así que conviene separar dos cosas:
 
 - **El scope marca el techo**: lo máximo que la app *podría* llegar a hacer.
-- **El código marca el suelo**: lo que realmente hace. Aquí, nueve herramientas, y la única que
-  envía exige dos llamadas y un token que caduca.
+- **El código marca el suelo**: lo que realmente hace. Aquí, las herramientas de la tabla de arriba
+  (`test/server.test.ts` fija el número), y la única que envía exige dos llamadas y un token que caduca.
 
 Y hay un límite que no depende del código: ninguno de los tres **permite el borrado permanente**. Eso
 exige el scope total `https://mail.google.com/`, que este servidor no pide. La papelera es
@@ -141,6 +153,8 @@ pnpm inspect                            # MCP Inspector
 
 ## Siguientes pasos para aprender
 
+- **Hilos, copias y adjuntos**: `reply_draft` con `thread_id` (`In-Reply-To`/`References` en `mime.ts`),
+  `cc`/`bcc` en `create_draft`, y adjuntos. Son los tres huecos que primero se notan al usarlo.
 - **Resources**: `style/voz.md` y `gmail://message/{id}` como recursos, para adjuntarlos con `@gmail-personal:` sin gastar una llamada.
 - Fusionar `search_emails` en `search_page` (son la misma herramienta con y sin token).
 - **Elicitation** en `send_email` como alternativa al token, para comparar las dos en vivo.

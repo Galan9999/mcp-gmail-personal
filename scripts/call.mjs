@@ -1,5 +1,5 @@
 // Llama a una herramienta del binario compilado por stdio, como lo haria Claude Code:
-//   pnpm call ping '{"echo":"hola"}'
+//   pnpm call list_labels '{}'
 // Es la "llamada real por el protocolo" que cierra la verificacion de un cambio.
 import { spawn } from 'node:child_process';
 

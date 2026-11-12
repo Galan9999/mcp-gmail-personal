@@ -40,12 +40,14 @@ Gmail **no acepta cualquier color**: solo 113 valores concretos, extraídos en
 `src/generated/palette.ts` desde los tipos de la propia API. `set_label_color` valida contra esa
 lista y rechaza lo que no esté, con el mensaje que te dice dónde mirar.
 
-Los cinco pares elegidos son pares **nativos** de Gmail: cada fondo oscuro tiene su texto claro
+Los ocho pares elegidos son pares **nativos** de Gmail: cada fondo oscuro tiene su texto claro
 correspondiente dentro de la paleta. Por eso contrastan bien sin haber tenido que calcular nada.
 
 ## Cambiarla
 
-Edita `style/paleta.json` y vuelve a aplicar. La herramienta `list_label_colors` devuelve a la vez
+`style/paleta.json` es una plantilla de ejemplo con las etiquetas del autor. Para la tuya, cópiala a
+`style/paleta.local.json` (git la ignora; el servidor la prefiere si existe) y edita ahí; luego vuelve a
+aplicar los colores con `set_label_color`. La herramienta `list_label_colors` devuelve a la vez
 los 113 permitidos y esta leyenda, así que una sesión puede proponerte alternativas sin inventarse
 colores que Gmail rechazaría.
 
